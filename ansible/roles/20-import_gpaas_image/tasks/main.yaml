@@ -1,0 +1,26 @@
+---
+- name: 分发项目相关镜像文件(耗时略长~)
+  synchronize: src=images dest={{ DEST_PATH }}/
+  become: no
+  tags: install
+
+- name: 分发载入镜像脚本
+  template: src=uploadimg.sh.j2 dest={{ DEST_PATH }}/uploadimg.sh force=yes
+  when: CONTAINER_RUNTIME == "docker"
+  tags: install
+
+- name: 载入镜像文件
+  shell: sh {{ DEST_PATH }}/uploadimg.sh
+  when: CONTAINER_RUNTIME == "docker"
+  tags: install
+
+- name: 分发载入镜像脚本
+  template: src=uploadimg-containerd.sh.j2 dest={{ DEST_PATH }}/uploadimg-containerd.sh force=yes
+  when: CONTAINER_RUNTIME == "containerd"
+  tags: install
+
+- name: 载入镜像文件
+  shell: sh {{ DEST_PATH }}/uploadimg-containerd.sh
+  when: CONTAINER_RUNTIME == "containerd"
+  tags: install
+

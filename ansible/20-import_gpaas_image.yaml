@@ -1,0 +1,7 @@
+---
+- hosts: node
+  gather_facts: yes
+  any_errors_fatal: true
+  vars:
+  roles:
+  - { role: 20-import_gpaas_image }

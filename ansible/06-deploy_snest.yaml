@@ -1,0 +1,12 @@
+---
+- hosts: node
+  gather_facts: yes
+  any_errors_fatal: true
+  vars:
+    SNEST_IMG: snest:19
+    SNEST_UI_IMG: snest-nginx:25
+    ENGINE_IMG: engine:6
+    CONTROLLER_IMG: iidp-controller:7
+    GRANT_IMG: grant:v2
+  roles:
+  - { role: 06-deploy_snest }

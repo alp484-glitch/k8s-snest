@@ -1,0 +1,213 @@
+test_pod:
+  enabled: true
+  image: bats/bats:1.8.2
+  pullPolicy: IfNotPresent
+
+loki:
+  persistence:
+    enabled: true
+  enabled: true
+  isDefault: true
+{% raw %}
+  url: http://{{(include "loki.serviceName" .)}}:{{ .Values.loki.service.port }}
+{% endraw %}
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: http-metrics
+    initialDelaySeconds: 45
+  livenessProbe:
+    httpGet:
+      path: /ready
+      port: http-metrics
+    initialDelaySeconds: 45
+  datasource:
+    jsonData: "{}"
+    uid: ""
+  image:
+    repository: {{ HARBOR_URL }}/{{ HARBOR_PRONAME }}/loki
+  config:
+    # existingSecret:
+    auth_enabled: false
+
+    memberlist:
+      join_members:
+        # the value must be defined as string to be evaluated when secret manifest is being generating
+{% raw %}
+        - '{{ include "loki.fullname" . }}-memberlist'
+{% endraw %}
+
+    ingester:
+      chunk_idle_period: 3m
+      chunk_block_size: 262144
+      chunk_retain_period: 1m
+      max_transfer_retries: 0
+      wal:
+        dir: /data/loki/wal
+      lifecycler:
+        ring:
+          replication_factor: 1
+
+        ## Different ring configs can be used. E.g. Consul
+        # ring:
+        #   store: consul
+        #   replication_factor: 1
+        #   consul:
+        #     host: "consul:8500"
+        #     prefix: ""
+        #     http_client_timeout: "20s"
+        #     consistent_reads: true
+    limits_config:
+      enforce_metric_name: false
+      reject_old_samples: true
+      reject_old_samples_max_age: 168h
+      max_entries_limit_per_query: 5000
+      retention_period: 2160h
+    schema_config:
+      configs:
+      - from: 2020-10-24
+        store: boltdb-shipper
+        object_store: filesystem
+        schema: v11
+        index:
+          prefix: index_
+          period: 24h
+    server:
+      http_listen_port: 3100
+      grpc_listen_port: 9095
+    storage_config:
+      boltdb_shipper:
+        active_index_directory: /data/loki/boltdb-shipper-active
+        cache_location: /data/loki/boltdb-shipper-cache
+        cache_ttl: 24h         # Can be increased for faster performance over longer query periods, uses more disk space
+        shared_store: filesystem
+      filesystem:
+        directory: /data/loki/chunks
+    chunk_store_config:
+      max_look_back_period: 0s
+    table_manager:
+      retention_deletes_enabled: false
+      retention_period: 0s
+    compactor:
+      retention_enabled: true
+      retention_delete_delay: 2h
+      retention_delete_worker_count: 150
+      working_directory: /data/loki/boltdb-shipper-compactor
+      shared_store: filesystem
+
+
+promtail:
+  enabled: true
+  config:
+    logLevel: info
+    serverPort: 3101
+    clients:
+{% raw %}
+      - url: http://{{ .Release.Name }}:3100/loki/api/v1/push
+{% endraw %}
+    snippets:
+      pipelineStages:
+        - json:
+            expressions:
+              output: log
+        - output:
+            source: output
+  image:
+    registry: {{ HARBOR_URL }}
+    repository: {{ HARBOR_PRONAME }}/promtail
+
+fluent-bit:
+  enabled: false
+
+grafana:
+  initChownData:
+    enabled: false
+  persistence:
+    enabled: true
+  enabled: true
+  sidecar:
+    datasources:
+      label: ""
+      labelValue: ""
+      enabled: true
+      maxLines: 1000
+  image:
+    tag: latest
+    repository: {{ HARBOR_URL }}/{{ HARBOR_PRONAME }}/grafana
+  sidecar:
+    image:
+      repository: {{ HARBOR_URL }}/{{ HARBOR_PRONAME }}/k8s-sidecar
+  grafana.ini:
+    server:
+      root_url: '%(protocol)s://%(domain)s:%(http_port)s/grafana/'
+      serve_from_sub_path: true
+    security:
+      allow_embedding: true
+
+prometheus:
+  enabled: false
+  isDefault: false
+{% raw %}
+  url: http://{{ include "prometheus.fullname" .}}:{{ .Values.prometheus.server.service.servicePort }}{{ .Values.prometheus.server.prefixURL }}
+{% endraw %}
+  datasource:
+    jsonData: "{}"
+
+filebeat:
+  enabled: false
+  filebeatConfig:
+    filebeat.yml: |
+      # logging.level: debug
+      filebeat.inputs:
+      - type: container
+        paths:
+          - /var/log/containers/*.log
+        processors:
+        - add_kubernetes_metadata:
+            host: ${NODE_NAME}
+            matchers:
+            - logs_path:
+                logs_path: "/var/log/containers/"
+      output.logstash:
+        hosts: ["logstash-loki:5044"]
+
+logstash:
+  enabled: false
+  image: grafana/logstash-output-loki
+  imageTag: 1.0.1
+  filters:
+    main: |-
+      filter {
+        if [kubernetes] {
+          mutate {
+            add_field => {
+              "container_name" => "%{[kubernetes][container][name]}"
+              "namespace" => "%{[kubernetes][namespace]}"
+              "pod" => "%{[kubernetes][pod][name]}"
+            }
+            replace => { "host" => "%{[kubernetes][node][name]}"}
+          }
+        }
+        mutate {
+          remove_field => ["tags"]
+        }
+      }
+  outputs:
+    main: |-
+      output {
+        loki {
+          url => "http://loki:3100/loki/api/v1/push"
+          #username => "test"
+          #password => "test"
+        }
+        # stdout { codec => rubydebug }
+      }
+
+# proxy is currently only used by loki test pod
+# Note: If http_proxy/https_proxy are set, then no_proxy should include the
+# loki service name, so that tests are able to communicate with the loki
+# service.
+proxy:
+  http_proxy: ""
+  https_proxy: ""
+  no_proxy: ""

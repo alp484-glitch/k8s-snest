@@ -1,0 +1,55 @@
+---
+- name: 检查主机是否存在helm进程-1
+  shell: which helm
+  ignore_errors: yes
+  register: check_helm
+  tags: install
+
+- name: 检查后端是否运行结果输出
+  debug: msg="{{ check_helm }}"
+  tags: install
+
+- name: 检查主机是否存在helm进程-2
+  debug: msg="没有在主机上发现可用的helm进程"
+  when: check_helm.rc != 0
+  tags: install
+
+- name: 拷贝所有需要的文件(耗时略长~)
+  synchronize: src=helm_all.tar.gz dest={{ DEST_PATH }}/
+  become: no
+  when: check_helm.rc != 0
+  tags: install
+
+- name: 解压文件
+  shell: rm -rf {{ DEST_PATH }}/helm_all && tar -zxf {{ DEST_PATH }}/helm_all.tar.gz -C {{ DEST_PATH }}/
+  when: check_helm.rc != 0
+  tags: install
+
+- name: 解压helm安装包
+  shell: tar -zxf {{ DEST_PATH }}/helm_all/helm-v3.11.0-linux-amd64.tar.gz -C {{ DEST_PATH }}/helm_all/
+  when: check_helm.rc != 0
+  tags: install
+
+- name: 安装helm
+  shell: chmod +x {{ DEST_PATH }}/helm_all/linux-amd64/helm && cp {{ DEST_PATH }}/helm_all/linux-amd64/helm /usr/local/bin
+  when: check_helm.rc != 0
+  tags: install
+
+- name: 拷贝安装snest文件
+  synchronize: src=k8s-snest dest={{ DEST_PATH }}/
+  become: no
+  tags: install
+
+- name: 生成values文件
+  template: src=values.yaml.j2 dest={{ DEST_PATH }}/k8s-snest/values.yaml force=yes
+  tags: install
+
+- name: 安装snest
+  shell: helm upgrade --install {{ APP_NAME }} {{ DEST_PATH }}/k8s-snest -n {{ NAME_SPACE }} --create-namespace
+  become: no
+  tags: install
+
+- name: 卸载snest
+  shell: helm uninstall {{ APP_NAME }} -n {{ NAME_SPACE }}
+  become: no
+  tags: uninstall

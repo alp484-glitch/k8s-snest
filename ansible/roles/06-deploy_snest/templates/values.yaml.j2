@@ -1,0 +1,51 @@
+replicaCount: 1
+persistentVolumeClaim: 
+  storageClassName:    #强烈建议使用共享存储类型,空表示选择默认SC
+  accessModes: ReadWriteMany   #默认PVC访问类型
+appAuth:
+  server: {{ APPAUTH_SERVER }}
+zipkin:
+  samplingRate: 0    #采样率，0是默认关闭
+  host:
+skywalking:
+  enable: false  #默认关闭
+  image:
+  host:
+redis:  #redis配置信息(必须)
+{% if REDIS_URL == 'auto' %}
+  host: redis-stack.{{ NAME_SPACE }}
+  port: 6379
+{% endif %}
+{% if REDIS_URL != 'auto' %}
+  host: {{ REDIS_URL }}
+  port: {{ REDIS_PORT }}
+{% endif %}
+  password: {{ REDIS_PASSWORD }}
+  image: {{ HARBOR_URL }}/{{ HARBOR_PRONAME }}/redis-stack:7.2.0-v4
+minio:  #minio配置信息(必须)
+{% if MINIO_URL == 'auto' %}
+  endpoint: http://minio.{{ NAME_SPACE }}:9000
+{% endif %}
+{% if MINIO_URL != 'auto' %}
+  endpoint: {{ MINIO_URL }}
+{% endif %}
+  accessKey: {{ MINIO_USER }}
+  secretKey: {{ MINIO_PASSWORD }}
+  bucketName: apps    #存储桶名称
+db:   #数据库配置信息(必须)
+  driverClassName: {{ DB_DRIVERCLASSNAME }}
+  url: {{ DB_URL }}
+  username: {{ DB_USERNAME }}
+  password: {{ DB_PASSWORD }}
+nginx:
+  image: {{ HARBOR_URL }}/{{ HARBOR_PRONAME }}/{{ SNEST_UI_IMG }}   #前端镜像地址
+  port: 30666    #前端监听端口，无必要不修改
+app:
+  image:
+    snest: {{ HARBOR_URL }}/{{ HARBOR_PRONAME }}/{{ SNEST_IMG }}   #后端镜像地址
+    sidecar: {{ HARBOR_URL }}/{{ HARBOR_PRONAME }}/{{ ENGINE_IMG }}    #边车镜像地址
+    controller: {{ HARBOR_URL }}/{{ HARBOR_PRONAME }}/{{ CONTROLLER_IMG }}
+    grant: {{ HARBOR_URL }}/{{ HARBOR_PRONAME }}/{{ GRANT_IMG }}
+  ports:
+    snest: 8060   #后端监听端口，无必要不修改
+    sidecar: 4500    #边车监听端口，无必要不修改

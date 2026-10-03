@@ -1,0 +1,29 @@
+#! /bin/sh
+harborUrl={{ HARBOR_URL }} #harbor地址，如使用kk部署的harbor, 应填 "dockerhub.kubekey.local"
+harborUsName={{ HARBOR_USNAME }}  #harbor用户名
+harborPsw={{ HARBOR_PSW }}  #harbor密码
+proName={{ HARBOR_PRONAME }} #harbor中的项目名称,可以自行在harbor创建
+for fileName in $(ls {{ DEST_PATH }}/images);
+do
+	echo $fileName
+	sudo docker login $harborUrl -u $harborUsName -p $harborPsw
+	
+	temp=$(docker load -i {{ DEST_PATH }}/images/$fileName -q)
+	oldimgName=$(echo $temp | awk '{print $3}')
+	echo $oldimgName
+	
+	newimgName="$harborUrl/$proName/${oldimgName##*/}"
+	echo $newimgName
+	sudo docker tag $oldimgName $newimgName
+	sudo docker push $newimgName
+	#docker rmi $oldimgName $newimgName
+	
+done
+
+#helm repo add --insecure-skip-tls-verify --username $harborUsName --password $harborPsw sie https://$harborUrl/chartrepo/$proName
+
+#for appName in $(ls ./apps);
+#do
+#	echo $appName
+#	helm cm-push --insecure --username=$harborUsName --password=$harborPsw apps/$appName sie
+#done

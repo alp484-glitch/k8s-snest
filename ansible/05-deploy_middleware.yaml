@@ -1,0 +1,7 @@
+---
+- hosts: node
+  gather_facts: no
+  any_errors_fatal: true
+  vars:
+  roles:
+  - { role: 05-deploy_middleware }
