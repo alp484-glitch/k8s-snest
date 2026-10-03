@@ -3,3 +3,4 @@
 /ansible/roles/20-import_gpaas_image/files/
 /ansible/roles/05-deploy_middleware/files/
 /ansible/roles/06-deploy_snest/files/
+/.idea/
